@@ -703,45 +703,45 @@ class GenericESCPOS(object):
 
         # Align Bar Code()
         if align_ct:
-            self._raw(TXT_STYLE["align"]["center"])
+            self.device.write(TXT_STYLE["align"]["center"])
         # Height
         if 1 <= height <= 255:
-            self._raw(BARCODE_HEIGHT + six.int2byte(height))
+            self.device.write(BARCODE_HEIGHT + six.int2byte(height))
         else:
             raise BarcodeSizeError("height = {height}".format(height=height))
         # Width
         if 2 <= width <= 6:
-            self._raw(BARCODE_WIDTH + six.int2byte(width))
+            self.device.write(BARCODE_WIDTH + six.int2byte(width))
         else:
             raise BarcodeSizeError("width = {width}".format(width=width))
         # Font
         if font.upper() == "B":
-            self._raw(BARCODE_FONT_B)
+            self.device.write(BARCODE_FONT_B)
         else:  # DEFAULT FONT: A
-            self._raw(BARCODE_FONT_A)
+            self.device.write(BARCODE_FONT_A)
         # Position
         if pos.upper() == "OFF":
-            self._raw(BARCODE_TXT_OFF)
+            self.device.write(BARCODE_TXT_OFF)
         elif pos.upper() == "BOTH":
-            self._raw(BARCODE_TXT_BTH)
+            self.device.write(BARCODE_TXT_BTH)
         elif pos.upper() == "ABOVE":
-            self._raw(BARCODE_TXT_ABV)
+            self.device.write(BARCODE_TXT_ABV)
         else:  # DEFAULT POSITION: BELOW
-            self._raw(BARCODE_TXT_BLW)
+            self.device.write(BARCODE_TXT_BLW)
 
-        self._raw(bc_types[bc.upper()])
+        self.device.write(bc_types[bc.upper()])
 
         if function_type.upper() == "B":
-            self._raw(six.int2byte(len(code)))
+            self.device.write(six.int2byte(len(code)))
 
         # Print Code
         if code:
-            self._raw(code.encode())
+            self.device.write(code.encode())
         else:
             raise BarcodeCodeError()
 
         if function_type.upper() == "A":
-            self._raw(NUL)      
+            self.device.write(NUL)      
 
     def cut(self, partial=True, feed=0):
         """Cut paper.

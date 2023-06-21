@@ -71,6 +71,12 @@ QRCODE_MODULE_SIZE_MAP = {
         barcode.QRCODE_MODULE_SIZE_8: b'\x08',
     }
 
+# Paper Cutter
+GS = b"\x1d"
+_CUT_PAPER = lambda m: GS + b"V" + m
+PAPER_FULL_CUT = _CUT_PAPER(b"\x00")  # Full cut paper
+PAPER_PART_CUT = _CUT_PAPER(b"\x01")  # Partial cut paper
+
 
 class GenericESCPOS(object):
     """The ESC/POS base class implementation.
@@ -533,38 +539,33 @@ class GenericESCPOS(object):
         return self.device.read()
 
     def cut(self, partial=True, feed=0):
-        """Trigger cutter to perform partial (default) or full paper cut.
+        """Cut paper.
 
-        :param bool partial: Optional. Indicates a partial (``True``, the
-            default value) or a full cut (``False``).
+        Without any arguments the paper will be cut completely. With 'mode=PART' a partial cut will
+        be attempted. Note however, that not all models can do a partial cut. See the documentation of
+        your printer for details.
 
-        :param int feed: Optional. Value from 0 (default) to 255 (inclusive).
-            This value should be multiple of the vertical motion unit, feeding
-            paper "until current position reaches the cutter".
-            For details, visit `GS V <https://www.epson-biz.com/modules/ref_escpos/index.php?content_id=87>`_
-            command documentation.
+        :param mode: set to 'PART' for a partial cut. default: 'FULL'
+        :param feed: print and feed before cutting. default: true
+        :raises ValueError: if mode not in ('FULL', 'PART')
+        """
 
-        """  # noqa: E501
-        if self.hardware_features.get(feature.CUTTER, False):
-            # TODO: implement hardware alternative for unavailable features
-            # For example:
-            #
-            #       self.hardware_alternatives.get('cutter-full-cut')(self)
-            #
-            # So, implementations or end-user-applications can replace
-            # certain hardware functionalites, based on available features.
-            #
-            # The above mapping can replace full cuts with line feeds for
-            # printer hardware that do not have an automatic paper cutter:
-            #
-            #       self.hardware_alternatives.update({
-            #               # skip 7 lines if we do not have a paper cutter
-            #               'cutter-full-cut': lambda impl: impl.lf(7)
-            #           })
-            #
-            func_b = b'\x42' if partial else b'\x41'  # function B
-            feed_n = six.int2byte(feed)
-            self.device.write(b'\x1D\x56' + func_b + feed_n)  # GS V m n
+        if not feed:
+            self.device.write(GS + b"V" + six.int2byte(66) + b"\x00")
+            return
+
+        self.print_and_feed(6)
+
+        if partial:
+            if self.profile.supports("paperPartCut"):
+                self.device.write(PAPER_PART_CUT)
+            elif self.profile.supports("paperFullCut"):
+                self.device.write(PAPER_FULL_CUT)
+        else:
+            if self.profile.supports("paperFullCut"):
+                self.device.write(PAPER_FULL_CUT)
+            elif self.profile.supports("paperPartCut"):
+                self.device.write(PAPER_PART_CUT)
 
     def kick_drawer(self, port=0, **kwargs):
         """Kick drawer connected to the given port.

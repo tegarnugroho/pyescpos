@@ -26,6 +26,7 @@ import time
 import six
 from six.moves import range
 
+from re import match as re_match
 from .. import barcode
 from .. import feature
 from ..exceptions import *
@@ -537,7 +538,34 @@ class GenericESCPOS(object):
     def close(self):
         """called upon closing the `with`-statement"""
         self.device.close()
-        
+
+    @staticmethod
+    def check_barcode(bc, code):
+        """
+        This method checks if the barcode is in the proper format.
+        The validation concerns the barcode length and the set of characters, but won't compute/validate any checksum.
+        The full set of requirement for each barcode type is available in the ESC/POS documentation.
+
+        As an example, using EAN13, the barcode `12345678901` will be correct, because it can be rendered by the
+        printer. But it does not suit the EAN13 standard, because the checksum digit is missing. Adding a wrong
+        checksum in the end will also be considered correct, but adding a letter won't (EAN13 is numeric only).
+
+        .. todo:: Add a method to compute the checksum for the different standards
+
+        .. todo:: For fixed-length standards with mandatory checksum (EAN, UPC),
+            compute and add the checksum automatically if missing.
+
+        :param bc: barcode format, see :py:meth:`.barcode()`
+        :param code: alphanumeric data to be printed as bar code, see :py:meth:`.barcode()`
+        :return: bool
+        """
+        if bc not in BARCODE_FORMATS:
+            return False
+
+        bounds, regex = BARCODE_FORMATS[bc]
+        return any(bound[0] <= len(code) <= bound[1] for bound in bounds) and re_match(
+            regex, code
+        )        
 
     def barcode(
         self,

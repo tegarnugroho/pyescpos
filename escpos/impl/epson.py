@@ -559,17 +559,20 @@ class GenericESCPOS(object):
             return
 
         self.print_and_feed(6)
+        
+        paperCut = PAPER_FULL_CUT
 
         if partial:
             if self.profile.supports("paperPartCut"):
-                self.device.write(PAPER_PART_CUT)
+                paperCut = PAPER_PART_CUT
             elif self.profile.supports("paperFullCut"):
-                self.device.write(PAPER_FULL_CUT)
+                paperCut = PAPER_FULL_CUT
         else:
             if self.profile.supports("paperFullCut"):
-                self.device.write(PAPER_FULL_CUT)
+                paperCut = PAPER_FULL_CUT
             elif self.profile.supports("paperPartCut"):
-                self.device.write(PAPER_PART_CUT)
+                paperCut = PAPER_PART_CUT
+        return self.device.write(paperCut)        
 
     def kick_drawer(self, port=0, **kwargs):
         """Kick drawer connected to the given port.

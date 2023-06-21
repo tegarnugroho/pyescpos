@@ -537,6 +537,10 @@ class GenericESCPOS(object):
 
         time.sleep(1)  # sleeps one second for qrcode to be printed
         return self.device.read()
+    
+    def close(self):
+        """called upon closing the `with`-statement"""
+        self.device.close()
 
     def cut(self, partial=True, feed=0):
         """Cut paper.

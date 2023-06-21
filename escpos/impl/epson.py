@@ -27,12 +27,13 @@ import six
 from six.moves import range
 
 from .. import barcode
-from .. import constants
 from .. import feature
-from ..exceptions import CashDrawerException
+from ..exceptions import *
 from ..helpers import ByteValue
 from ..helpers import is_value_in
 from ..helpers import _Model
+from ..constants import *
+from ..capabilities import BARCODE_B
 
 
 VENDOR = 'Seiko-Epson Corporation'
@@ -131,10 +132,10 @@ class GenericESCPOS(object):
     model = _Model(name='Generic ESC/POS', vendor=VENDOR)
     """Basic metadata with vendor and model name."""
 
-    encoding = constants.DEFAULT_ENCODING
+    encoding = DEFAULT_ENCODING
     """Default encoding used to encode data before sending to device."""
 
-    encoding_errors = constants.DEFAULT_ENCODING_ERRORS
+    encoding_errors = DEFAULT_ENCODING_ERRORS
     """How to deal with ``UnicodeEncodingError``.
     See ``errors`` argument to ``str.encode()`` for details.
     """
@@ -143,8 +144,8 @@ class GenericESCPOS(object):
             self,
             device,
             features=None,
-            encoding=constants.DEFAULT_ENCODING,
-            encoding_errors=constants.DEFAULT_ENCODING_ERRORS):
+            encoding=DEFAULT_ENCODING,
+            encoding_errors=DEFAULT_ENCODING_ERRORS):
         super(GenericESCPOS, self).__init__()
         self._feature_attrs = feature.FeatureAttributes(self)
         self.hardware_features = feature._SET.copy()
@@ -541,6 +542,183 @@ class GenericESCPOS(object):
     def close(self):
         """called upon closing the `with`-statement"""
         self.device.close()
+        
+
+    def barcode(
+        self,
+        code,
+        bc,
+        height=64,
+        width=3,
+        pos="BELOW",
+        font="A",
+        align_ct=True,
+        function_type=None,
+        check=True,
+    ):
+        """Print Barcode
+
+        This method allows to print barcodes. The rendering of the barcode is done by the printer and therefore has to
+        be supported by the unit. By default, this method will check whether your barcode text is correct, that is
+        the characters and lengths are supported by ESCPOS. Call the method with `check=False` to disable the check, but
+        note that uncorrect barcodes may lead to unexpected printer behaviour.
+        There are two forms of the barcode function. Type A is default but has fewer barcodes,
+        while type B has some more to choose from.
+
+        Use the parameters `height` and `width` for adjusting of the barcode size. Please take notice that the barcode
+        will not be printed if it is outside of the printable area. (Which should be impossible with this method, so
+        this information is probably more useful for debugging purposes.)
+
+        .. todo:: On TM-T88II width from 1 to 6 is accepted. Try to acquire command reference and correct the code.
+        .. todo:: Supplying pos does not have an effect for every barcode type. Check and document for which types this
+                  is true.
+
+        If you do not want to center the barcode you can call the method with `align_ct=False`, which will disable
+        automatic centering. Please note that when you use center alignment, then the alignment of text will be changed
+        automatically to centered. You have to manually restore the alignment if necessary.
+
+        .. todo:: If further barcode-types are needed they could be rendered transparently as an image. (This could also
+                  be of help if the printer does not support types that others do.)
+
+        :param code: alphanumeric data to be printed as bar code
+        :param bc: barcode format, possible values are for type A are:
+
+            * UPC-A
+            * UPC-E
+            * EAN13
+            * EAN8
+            * CODE39
+            * ITF
+            * NW7
+
+            Possible values for type B:
+
+            * All types from function type A
+            * CODE93
+            * CODE128
+            * GS1-128
+            * GS1 DataBar Omnidirectional
+            * GS1 DataBar Truncated
+            * GS1 DataBar Limited
+            * GS1 DataBar Expanded
+
+            If none is specified, the method raises :py:exc:`~escpos.exceptions.BarcodeTypeError`.
+        :param height: barcode height, has to be between 1 and 255
+            *default*: 64
+        :type height: int
+        :param width: barcode width, has to be between 2 and 6
+            *default*: 3
+        :type width: int
+        :param pos: where to place the text relative to the barcode, *default*: BELOW
+
+            * ABOVE
+            * BELOW
+            * BOTH
+            * OFF
+
+        :param font: select font (see ESC/POS-documentation, the device often has two fonts), *default*: A
+
+            * A
+            * B
+
+        :param align_ct: If this parameter is True the barcode will be centered. Otherwise no alignment command will be
+                         issued.
+        :type align_ct: bool
+
+        :param function_type: Choose between ESCPOS function type A or B,
+            depending on printer support and desired barcode. If not given,
+            the printer will attempt to automatically choose the correct
+            function based on the current profile.
+            *default*: A
+
+        :param check: If this parameter is True, the barcode format will be checked to ensure it meets the bc
+            requirements as definged in the ESC/POS documentation. See :py:meth:`.check_barcode()`
+            for more information. *default*: True.
+
+        :raises: :py:exc:`~escpos.exceptions.BarcodeSizeError`,
+                 :py:exc:`~escpos.exceptions.BarcodeTypeError`,
+                 :py:exc:`~escpos.exceptions.BarcodeCodeError`
+        """
+        if function_type is None:
+            # Choose the function type automatically.
+            if bc in BARCODE_TYPES["A"]:
+                function_type = "A"
+            else:
+                if bc in BARCODE_TYPES["B"]:
+                    if not self.profile.supports(BARCODE_B):
+                        raise BarcodeTypeError(
+                            (
+                                "Barcode type '{bc} not supported for "
+                                "the current printer profile"
+                            ).format(bc=bc)
+                        )
+                    function_type = "B"
+                else:
+                    raise BarcodeTypeError(
+                        ("Barcode type '{bc} is not valid").format(bc=bc)
+                    )
+
+        bc_types = BARCODE_TYPES[function_type.upper()]
+        if bc.upper() not in bc_types.keys():
+            raise BarcodeTypeError(
+                (
+                    "Barcode '{bc}' not valid for barcode function type "
+                    "{function_type}"
+                ).format(
+                    bc=bc,
+                    function_type=function_type,
+                )
+            )
+
+        if check and not self.check_barcode(bc, code):
+            raise BarcodeCodeError(
+                ("Barcode '{code}' not in a valid format for type '{bc}'").format(
+                    code=code,
+                    bc=bc,
+                )
+            )
+
+        # Align Bar Code()
+        if align_ct:
+            self._raw(TXT_STYLE["align"]["center"])
+        # Height
+        if 1 <= height <= 255:
+            self._raw(BARCODE_HEIGHT + six.int2byte(height))
+        else:
+            raise BarcodeSizeError("height = {height}".format(height=height))
+        # Width
+        if 2 <= width <= 6:
+            self._raw(BARCODE_WIDTH + six.int2byte(width))
+        else:
+            raise BarcodeSizeError("width = {width}".format(width=width))
+        # Font
+        if font.upper() == "B":
+            self._raw(BARCODE_FONT_B)
+        else:  # DEFAULT FONT: A
+            self._raw(BARCODE_FONT_A)
+        # Position
+        if pos.upper() == "OFF":
+            self._raw(BARCODE_TXT_OFF)
+        elif pos.upper() == "BOTH":
+            self._raw(BARCODE_TXT_BTH)
+        elif pos.upper() == "ABOVE":
+            self._raw(BARCODE_TXT_ABV)
+        else:  # DEFAULT POSITION: BELOW
+            self._raw(BARCODE_TXT_BLW)
+
+        self._raw(bc_types[bc.upper()])
+
+        if function_type.upper() == "B":
+            self._raw(six.int2byte(len(code)))
+
+        # Print Code
+        if code:
+            self._raw(code.encode())
+        else:
+            raise BarcodeCodeError()
+
+        if function_type.upper() == "A":
+            self._raw(NUL)      
 
     def cut(self, partial=True, feed=0):
         """Cut paper.

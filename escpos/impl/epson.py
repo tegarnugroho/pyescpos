@@ -535,6 +535,108 @@ class GenericESCPOS(object):
         time.sleep(1)  # sleeps one second for qrcode to be printed
         return self.device.read()
     
+    def set(
+        self,
+        align="left",
+        font="a",
+        bold=False,
+        underline=0,
+        width=1,
+        height=1,
+        density=9,
+        invert=False,
+        smooth=False,
+        flip=False,
+        double_width=False,
+        double_height=False,
+        custom_size=False,
+    ):
+        """Set text properties by sending them to the printer
+
+        :param align: horizontal position for text, possible values are:
+
+            * 'center'
+            * 'left'
+            * 'right'
+
+            *default*: 'left'
+
+        :param font: font given as an index, a name, or one of the
+            special values 'a' or 'b', referring to fonts 0 and 1.
+        :param bold: text in bold, *default*: False
+        :param underline: underline mode for text, decimal range 0-2,  *default*: 0
+        :param double_height: doubles the height of the text
+        :param double_width: doubles the width of the text
+        :param custom_size: uses custom size specified by width and height
+            parameters. Cannot be used with double_width or double_height.
+        :param width: text width multiplier when custom_size is used, decimal range 1-8,  *default*: 1
+        :param height: text height multiplier when custom_size is used, decimal range 1-8, *default*: 1
+        :param density: print density, value from 0-8, if something else is supplied the density remains unchanged
+        :param invert: True enables white on black printing, *default*: False
+        :param smooth: True enables text smoothing. Effective on 4x4 size text and larger, *default*: False
+        :param flip: True enables upside-down printing, *default*: False
+
+        :type font: str
+        :type invert: bool
+        :type bold: bool
+        :type underline: bool
+        :type smooth: bool
+        :type flip: bool
+        :type custom_size: bool
+        :type double_width: bool
+        :type double_height: bool
+        :type align: str
+        :type width: int
+        :type height: int
+        :type density: int
+        """
+
+        if custom_size:
+            if (
+                1 <= width <= 8
+                and 1 <= height <= 8
+                and isinstance(width, int)
+                and isinstance(height, int)
+            ):
+                size_byte = TXT_STYLE["width"][width] + TXT_STYLE["height"][height]
+                self.device.write(TXT_SIZE + six.int2byte(size_byte))
+            else:
+                raise SetVariableError()
+        else:
+            self.device.write(TXT_NORMAL)
+            if double_width and double_height:
+                self.device.write(TXT_STYLE["size"]["2x"])
+            elif double_width:
+                self.device.write(TXT_STYLE["size"]["2w"])
+            elif double_height:
+                self.device.write(TXT_STYLE["size"]["2h"])
+            else:
+                self.device.write(TXT_STYLE["size"]["normal"])
+
+        self.device.write(TXT_STYLE["flip"][flip])
+        self.device.write(TXT_STYLE["smooth"][smooth])
+        self.device.write(TXT_STYLE["bold"][bold])
+        self.device.write(TXT_STYLE["underline"][underline])
+        self.device.write(SET_FONT(six.int2byte(self.profile.get_font(font))))
+        self.device.write(TXT_STYLE["align"][align])
+
+        if density != 9:
+            self.device.write(TXT_STYLE["density"][density])
+
+        self.device.write(TXT_STYLE["invert"][invert])    
+    
+    def writeText(self, txt):
+        """Print alpha-numeric text
+
+        The text has to be encoded in the currently selected codepage.
+        The input text has to be encoded in unicode.
+
+        :param txt: text to be printed
+        :raises: :py:exc:`~escpos.exceptions.TextError`
+        """
+        txt = six.text_type(txt)
+        self.device.write(txt)    
+    
     def close(self):
         """called upon closing the `with`-statement"""
         self.device.close()

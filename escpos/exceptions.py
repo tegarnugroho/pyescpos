@@ -99,3 +99,18 @@ class BarcodeCodeError(Error):
 
     def __str__(self):
         return "No Barcode code was supplied ({msg})".format(msg=self.msg)
+    
+class SetVariableError(Error):
+    """A set method variable was out of range
+
+    Check set variables against minimum and maximum values
+    Ths returncode for this exception is `100`.
+    """
+
+    def __init__(self, msg=""):
+        Error.__init__(self, msg)
+        self.msg = msg
+        self.resultcode = 100
+
+    def __str__(self):
+        return "Set variable out of range ({msg})".format(msg=self.msg)    

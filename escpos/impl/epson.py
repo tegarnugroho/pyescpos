@@ -33,7 +33,6 @@ from ..helpers import ByteValue
 from ..helpers import is_value_in
 from ..helpers import _Model
 from ..constants import *
-from ..capabilities import BARCODE_B
 
 
 VENDOR = 'Seiko-Epson Corporation'
@@ -72,11 +71,7 @@ QRCODE_MODULE_SIZE_MAP = {
         barcode.QRCODE_MODULE_SIZE_8: b'\x08',
     }
 
-# Paper Cutter
-GS = b"\x1d"
-_CUT_PAPER = lambda m: GS + b"V" + m
-PAPER_FULL_CUT = _CUT_PAPER(b"\x00")  # Full cut paper
-PAPER_PART_CUT = _CUT_PAPER(b"\x01")  # Partial cut paper
+BARCODE_B = "barcodeB"
 
 
 class GenericESCPOS(object):
